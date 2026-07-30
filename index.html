@@ -620,7 +620,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'buscarEmpleado', id: id })
-      }))
+      })
         .then(res => res.json())
         .then(resultado => {
           if (resultado.encontrado) {
