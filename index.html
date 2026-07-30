@@ -437,6 +437,44 @@
     let selectedCameraId = null;
     let ultimoRegistro = {};
     let cameraEnabled = true;
+
+    // ---- Helper JSONP: evita el bloqueo de CORS de Apps Script ----
+    // Crea una etiqueta <script> temporal en vez de usar fetch().
+    let jsonpContador = 0;
+    function jsonpRequest(params, onSuccess, onError) {
+      jsonpContador++;
+      const nombreCallback = 'jsonpCallback_' + jsonpContador;
+
+      const timeoutId = setTimeout(() => {
+        limpiar();
+        if (onError) onError(new Error('Tiempo de espera agotado'));
+      }, 15000);
+
+      function limpiar() {
+        clearTimeout(timeoutId);
+        delete window[nombreCallback];
+        const scriptViejo = document.getElementById(nombreCallback);
+        if (scriptViejo) scriptViejo.remove();
+      }
+
+      window[nombreCallback] = function(datos) {
+        limpiar();
+        onSuccess(datos);
+      };
+
+      const queryString = Object.keys(params)
+        .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]))
+        .join('&');
+
+      const script = document.createElement('script');
+      script.id = nombreCallback;
+      script.src = API_URL + '?' + queryString + '&callback=' + nombreCallback;
+      script.onerror = function() {
+        limpiar();
+        if (onError) onError(new Error('Error de red al llamar a Apps Script'));
+      };
+      document.body.appendChild(script);
+    }
     
     function actualizarReloj() {
       const ahora = new Date();
@@ -616,13 +654,9 @@
       
       mostrarBusqueda();
       
-      fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'buscarEmpleado', id: id })
-      })
-        .then(res => res.json())
-        .then(resultado => {
+      jsonpRequest(
+        { action: 'buscarEmpleado', id: id },
+        function(resultado) {
           if (resultado.encontrado) {
             employeeData = resultado.datos;
             mostrarInfoEmpleado(resultado.datos);
@@ -632,13 +666,14 @@
             mostrarRespuesta("⚠️ " + (resultado.mensaje || 'Empleado no encontrado'), "warning");
             deshabilitarBotonRegistro();
           }
-        })
-        .catch(err => {
+        },
+        function(err) {
           console.error(err);
           ocultarInfoEmpleado();
           mostrarRespuesta("❌ Error al buscar empleado", "error");
           deshabilitarBotonRegistro();
-        });
+        }
+      );
     }
     
     function mostrarBusqueda() {
@@ -705,15 +740,9 @@
         estado: estado 
       };
       
-      // text/plain evita que el navegador mande una petición OPTIONS (preflight)
-      // que Apps Script no maneja bien.
-      fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(data)
-      })
-        .then(res => res.json())
-        .then(resultado => {
+      jsonpRequest(
+        data,
+        function(resultado) {
           btnSubmit.innerHTML = '✅ Registrar Asistencia';
           
           if (resultado.exito) {
@@ -729,13 +758,14 @@
             mostrarRespuesta(resultado.mensaje, "warning");
             habilitarBotonRegistro();
           }
-        })
-        .catch(err => {
+        },
+        function(err) {
           console.error(err);
           btnSubmit.innerHTML = '✅ Registrar Asistencia';
           habilitarBotonRegistro();
           mostrarRespuesta("❌ Error de conexión", "error");
-        });
+        }
+      );
     }
     
     document.getElementById("formulario").addEventListener("submit", enviarFormulario);
