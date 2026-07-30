@@ -323,6 +323,16 @@
       font-size: clamp(12px, 3vw, 14px);
     }
 
+    #login-respuesta {
+      margin-top: 15px;
+      padding: 12px;
+      border-radius: var(--border-radius);
+      text-align: center;
+      font-weight: 600;
+      display: none;
+      font-size: 14px;
+    }
+
     @media (max-width: 480px) {
       body {
         padding: 5px;
@@ -365,8 +375,30 @@
       <h1>ASISTENCIA LIDERMAN 2026</h1>
       <p>Escanea tu código QR o ingresa tu ID</p>
     </div>
-    
-    <div class="content">
+
+    <!-- ---- PANTALLA DE LOGIN ---- -->
+    <div class="content" id="login-screen">
+      <div class="form-group">
+        <label for="login-correo">📧 Correo corporativo:</label>
+        <input type="email" id="login-correo" placeholder="usuario@jvresguardo.com.pe">
+      </div>
+      <div class="form-group">
+        <label for="login-contrasena">🔒 Contraseña:</label>
+        <input type="password" id="login-contrasena" placeholder="Contraseña">
+      </div>
+      <button type="button" class="btn" id="btn-login" onclick="iniciarSesion()">
+        🔑 Ingresar
+      </button>
+      <div id="login-respuesta"></div>
+    </div>
+
+    <!-- ---- CONTENIDO PRINCIPAL (oculto hasta iniciar sesión) ---- -->
+    <div class="content" id="app-content" style="display:none;">
+      <div style="text-align:right; margin-bottom:10px;">
+        <span id="responsable-actual" style="font-size:13px; color:#6c757d;"></span>
+        <a href="#" onclick="cerrarSesion(); return false;" style="font-size:13px; color:#2196F3; margin-left:8px;">Cerrar sesión</a>
+      </div>
+
       <div class="time-display" id="reloj-tiempo">🕐 Cargando...</div>
       
       <div class="camera-toggle">
@@ -377,6 +409,17 @@
             <span class="slider"></span>
           </label>
           <span id="camera-status">Activada</span>
+        </div>
+      </div>
+
+      <div class="camera-toggle">
+        <div class="toggle-wrapper">
+          <span>📍 GPS:</span>
+          <label class="switch">
+            <input type="checkbox" id="gps-toggle" checked>
+            <span class="slider"></span>
+          </label>
+          <span id="gps-status">Activado</span>
         </div>
       </div>
       
@@ -428,7 +471,7 @@
 
   <script>
     // ⚠️ IMPORTANTE: pega aquí la URL de tu Web App de Apps Script (termina en /exec)
-    const API_URL = "https://script.google.com/macros/s/AKfycbxGp8-ds-Sytiwl-2MLEVaLQ1Ue6-ILP2HkSpc617EOUOgWX1UFXd88WkLi2b7Yd-Mh/exec";
+    const API_URL = "PEGA_AQUI_TU_URL_DE_APPS_SCRIPT/exec";
 
     let qrCodeReader = null;
     let isScanning = false;
@@ -437,6 +480,7 @@
     let selectedCameraId = null;
     let ultimoRegistro = {};
     let cameraEnabled = true;
+    let gpsEnabled = true;
 
     // ---- Helper JSONP: evita el bloqueo de CORS de Apps Script ----
     // Crea una etiqueta <script> temporal en vez de usar fetch().
@@ -716,7 +760,30 @@
       }
     }
     
-    function enviarFormulario(event) {
+    // ---- Helper de geolocalización ----
+    // Intenta obtener la ubicación; si falla o no hay permiso, sigue sin bloquear el registro.
+    function obtenerUbicacion() {
+      return new Promise((resolve) => {
+        if (!gpsEnabled || !navigator.geolocation) {
+          resolve({ lat: '', lng: '' });
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (posicion) => {
+            resolve({
+              lat: posicion.coords.latitude,
+              lng: posicion.coords.longitude
+            });
+          },
+          () => {
+            resolve({ lat: '', lng: '' }); // permiso denegado o error: seguimos sin ubicación
+          },
+          { timeout: 8000, enableHighAccuracy: true }
+        );
+      });
+    }
+
+    async function enviarFormulario(event) {
       event.preventDefault();
       
       const id = document.getElementById("id").value.trim();
@@ -728,8 +795,12 @@
       }
       
       const btnSubmit = document.getElementById("btn-submit");
-      btnSubmit.innerHTML = '<div class="loading"></div> Registrando...';
+      btnSubmit.innerHTML = '<div class="loading"></div> Obteniendo ubicación...';
       btnSubmit.disabled = true;
+
+      const ubicacion = await obtenerUbicacion();
+
+      btnSubmit.innerHTML = '<div class="loading"></div> Registrando...';
       
       const data = { 
         action: 'registrarAsistencia',
@@ -737,7 +808,10 @@
         nombre: employeeData.nombre,
         area: employeeData.area,
         cargo: employeeData.cargo,
-        estado: estado 
+        estado: estado,
+        lat: ubicacion.lat,
+        lng: ubicacion.lng,
+        responsable: supervisorActual ? supervisorActual.cargo : ''
       };
       
       jsonpRequest(
@@ -785,8 +859,77 @@
     document.getElementById("camera-toggle").addEventListener("change", function(e) {
       toggleCamera(e.target.checked);
     });
+
+    document.getElementById("gps-toggle").addEventListener("change", function(e) {
+      gpsEnabled = e.target.checked;
+      const statusSpan = document.getElementById("gps-status");
+      statusSpan.textContent = gpsEnabled ? "Activado" : "Desactivado";
+      statusSpan.style.color = gpsEnabled ? "var(--primary)" : "#999";
+    });
     
-    window.addEventListener('load', function() {
+    // ---- Login de supervisores ----
+    let supervisorActual = null;
+
+    function iniciarSesion() {
+      const correo = document.getElementById('login-correo').value.trim();
+      const contrasena = document.getElementById('login-contrasena').value.trim();
+      const btnLogin = document.getElementById('btn-login');
+      const loginRespuesta = document.getElementById('login-respuesta');
+
+      if (!correo || !contrasena) {
+        mostrarLoginRespuesta('❌ Ingresa correo y contraseña', 'error');
+        return;
+      }
+
+      btnLogin.innerHTML = '<div class="loading"></div> Ingresando...';
+      btnLogin.disabled = true;
+
+      jsonpRequest(
+        { action: 'login', correo: correo, contrasena: contrasena },
+        function(resultado) {
+          btnLogin.innerHTML = '🔑 Ingresar';
+          btnLogin.disabled = false;
+
+          if (resultado.exito) {
+            supervisorActual = { correo: resultado.correo, cargo: resultado.cargo };
+            sessionStorage.setItem('supervisorActual', JSON.stringify(supervisorActual));
+            mostrarApp();
+          } else {
+            mostrarLoginRespuesta('❌ ' + (resultado.mensaje || 'No se pudo iniciar sesión'), 'error');
+          }
+        },
+        function(err) {
+          console.error(err);
+          btnLogin.innerHTML = '🔑 Ingresar';
+          btnLogin.disabled = false;
+          mostrarLoginRespuesta('❌ Error de conexión', 'error');
+        }
+      );
+    }
+
+    function mostrarLoginRespuesta(mensaje, tipo) {
+      const el = document.getElementById('login-respuesta');
+      el.textContent = mensaje;
+      el.className = tipo;
+      el.style.display = 'block';
+    }
+
+    function cerrarSesion() {
+      supervisorActual = null;
+      sessionStorage.removeItem('supervisorActual');
+      detenerEscaneo();
+      document.getElementById('app-content').style.display = 'none';
+      document.getElementById('login-screen').style.display = 'block';
+      document.getElementById('login-correo').value = '';
+      document.getElementById('login-contrasena').value = '';
+    }
+
+    function mostrarApp() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app-content').style.display = 'block';
+      document.getElementById('responsable-actual').textContent =
+        '👤 ' + supervisorActual.cargo + ' (' + supervisorActual.correo + ')';
+
       actualizarReloj();
       setInterval(actualizarReloj, 1000);
       setTimeout(() => {
@@ -794,6 +937,14 @@
           cargarCamaras();
         }
       }, 1000);
+    }
+
+    window.addEventListener('load', function() {
+      const sesionGuardada = sessionStorage.getItem('supervisorActual');
+      if (sesionGuardada) {
+        supervisorActual = JSON.parse(sesionGuardada);
+        mostrarApp();
+      }
     });
     
     window.addEventListener('beforeunload', function() {
