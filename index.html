@@ -492,7 +492,7 @@
       const timeoutId = setTimeout(() => {
         limpiar();
         if (onError) onError(new Error('Tiempo de espera agotado'));
-      }, 15000);
+      }, 30000);
 
       function limpiar() {
         clearTimeout(timeoutId);
