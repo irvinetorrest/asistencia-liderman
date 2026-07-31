@@ -7,8 +7,8 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     :root {
-      --primary: #4CAF50;
-      --primary-dark: #45a049;
+      --primary: #C81E1E;
+      --primary-dark: #A11818;
       --secondary: #2196F3;
       --secondary-dark: #1976D2;
       --success: #d4edda;
@@ -17,7 +17,7 @@
       --error-text: #721c24;
       --warning: #fff3cd;
       --warning-text: #856404;
-      --bg-main: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --bg-main: linear-gradient(rgba(10,10,10,0.55), rgba(10,10,10,0.7)), url('fondo.JPG') center/cover no-repeat fixed;
       --shadow: 0 4px 20px rgba(0,0,0,0.15);
       --border-radius: 12px;
       --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -333,6 +333,86 @@
       font-size: 14px;
     }
 
+    /* ---- Logo y tarjeta de login estilo Liderman ---- */
+    .logo-brand {
+      display: block;
+      max-width: min(260px, 70vw);
+      margin: 24px auto 16px;
+    }
+
+    .login-card {
+      max-width: min(500px, 100vw - 20px);
+      margin: 0 auto;
+      background: #1a1a1a;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      animation: slideIn 0.5s ease-out;
+    }
+
+    .login-card-topbar {
+      height: 5px;
+      background: var(--primary);
+    }
+
+    .login-card-body {
+      padding: clamp(20px, 5vw, 32px);
+    }
+
+    .login-card-body h2 {
+      color: #fff;
+      font-size: clamp(17px, 4.5vw, 20px);
+      text-align: center;
+      margin-bottom: 22px;
+      font-weight: 600;
+    }
+
+    .login-card-body label {
+      color: #ddd;
+    }
+
+    .login-card-body input {
+      background: #2b2b2b;
+      border: 1px solid #3a3a3a;
+      color: #fff;
+    }
+
+    .login-card-body input::placeholder {
+      color: #888;
+    }
+
+    .login-card-body input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(200, 30, 30, 0.2);
+    }
+
+    .btn-login {
+      width: 100%;
+      padding: clamp(12px, 3vw, 16px);
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--border-radius);
+      font-size: clamp(14px, 4vw, 16px);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .btn-login:hover:not(:disabled) {
+      background: var(--primary-dark);
+    }
+
+    .login-card-footer {
+      background: var(--primary);
+      color: #fff;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 10px;
+    }
+
     @media (max-width: 480px) {
       body {
         padding: 5px;
@@ -370,34 +450,42 @@
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>ASISTENCIA LIDERMAN 2026</h1>
-      <p>Escanea tu código QR o ingresa tu ID</p>
-    </div>
+  <img src="logo.png" alt="Liderman" class="logo-brand">
 
+  <div class="container" id="main-container">
     <!-- ---- PANTALLA DE LOGIN ---- -->
-    <div class="content" id="login-screen">
-      <div class="form-group">
-        <label for="login-correo">📧 Correo corporativo:</label>
-        <input type="email" id="login-correo" placeholder="usuario@jvresguardo.com.pe">
+    <div class="login-card" id="login-screen">
+      <div class="login-card-topbar"></div>
+      <div class="login-card-body">
+        <h2>Acceso al Sistema Liderman</h2>
+        <div class="form-group">
+          <label for="login-correo">👤 Usuario:</label>
+          <input type="email" id="login-correo" placeholder="usuario@jvresguardo.com.pe">
+        </div>
+        <div class="form-group">
+          <label for="login-contrasena">🔒 Contraseña:</label>
+          <input type="password" id="login-contrasena" placeholder="Ingresa tu contraseña">
+        </div>
+        <button type="button" class="btn-login" id="btn-login" onclick="iniciarSesion()">
+          INGRESAR
+        </button>
+        <div id="login-respuesta"></div>
       </div>
-      <div class="form-group">
-        <label for="login-contrasena">🔒 Contraseña:</label>
-        <input type="password" id="login-contrasena" placeholder="Contraseña">
-      </div>
-      <button type="button" class="btn" id="btn-login" onclick="iniciarSesion()">
-        🔑 Ingresar
-      </button>
-      <div id="login-respuesta"></div>
+      <div class="login-card-footer">© Liderman — Seguridad y Confianza</div>
     </div>
 
     <!-- ---- CONTENIDO PRINCIPAL (oculto hasta iniciar sesión) ---- -->
     <div class="content" id="app-content" style="display:none;">
-      <div style="text-align:right; margin-bottom:10px;">
+      <div class="header">
+        <h1>ASISTENCIA LIDERMAN 2026</h1>
+        <p>Escanea tu código QR o ingresa tu ID</p>
+      </div>
+
+      <div style="text-align:right; margin: 10px 20px 0 0;">
         <span id="responsable-actual" style="font-size:13px; color:#6c757d;"></span>
         <a href="#" onclick="cerrarSesion(); return false;" style="font-size:13px; color:#2196F3; margin-left:8px;">Cerrar sesión</a>
       </div>
+      <div style="padding: 0 20px 20px;">
 
       <div class="time-display" id="reloj-tiempo">🕐 Cargando...</div>
       
@@ -466,12 +554,13 @@
       </form>
       
       <div id="respuesta"></div>
+      </div>
     </div>
   </div>
 
   <script>
     // ⚠️ IMPORTANTE: pega aquí la URL de tu Web App de Apps Script (termina en /exec)
-    const API_URL = "https://script.google.com/macros/s/AKfycbydchmtHUIbtyON6-dIpOxNEWjrs6DXx36_JMC6lSqSNvsiYOoGFgPAR3b3I9jznO3o/exec";
+    const API_URL = "PEGA_AQUI_TU_URL_DE_APPS_SCRIPT/exec";
 
     let qrCodeReader = null;
     let isScanning = false;
