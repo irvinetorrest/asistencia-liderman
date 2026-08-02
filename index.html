@@ -680,7 +680,7 @@
 
   <script>
     // ⚠️ IMPORTANTE: pega aquí la URL de tu Web App de Apps Script (termina en /exec)
-    const API_URL = "https://script.google.com/macros/s/AKfycbydchmtHUIbtyON6-dIpOxNEWjrs6DXx36_JMC6lSqSNvsiYOoGFgPAR3b3I9jznO3o/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbxTu7E5xcj1zc8FTbQCzKV1NkmCzLYtXs6sOy6PspcI61NjjHVllMVmsvaKO1SlIw6m/exec";
 
     let qrCodeReader = null;
     let isScanning = false;
@@ -690,6 +690,7 @@
     let ultimoRegistro = {};
     let cameraEnabled = true;
     let gpsEnabled = true;
+    let procesandoQR = false; // evita que el mismo QR se procese varias veces seguidas mientras está frente a la cámara
 
     // ---- Helper JSONP: evita el bloqueo de CORS de Apps Script ----
     // Crea una etiqueta <script> temporal en vez de usar fetch().
@@ -892,6 +893,9 @@
     }
     
     function procesarQR(textoQR) {
+      if (procesandoQR) return; // ya hay un escaneo en proceso, ignoramos este
+      procesandoQR = true;
+
       const idEmpleado = textoQR.trim();
       document.getElementById("id").value = idEmpleado;
       buscarEmpleado(idEmpleado, true); // true = registrar automáticamente al encontrar al empleado
@@ -917,12 +921,13 @@
             if (autoRegistrar) {
               // Viene de un escaneo QR: se registra solo, sin necesitar el botón
               const estado = document.getElementById("estado").value;
-              registrarAhora(id, estado);
+              registrarAhora(id, estado, autoRegistrar);
             }
           } else {
             ocultarInfoEmpleado();
             mostrarRespuesta("⚠️ " + (resultado.mensaje || 'Empleado no encontrado'), "warning");
             deshabilitarBotonRegistro();
+            if (autoRegistrar) liberarBloqueoQR();
           }
         },
         function(err) {
@@ -930,8 +935,10 @@
           ocultarInfoEmpleado();
           mostrarRespuesta("❌ Error al buscar empleado", "error");
           deshabilitarBotonRegistro();
+          if (autoRegistrar) liberarBloqueoQR();
         }
       );
+
     }
 
     
@@ -1042,9 +1049,16 @@
     }
 
     // ---- Lógica central de registro (usada por QR automático Y por el botón manual) ----
-    async function registrarAhora(id, estado) {
+    function liberarBloqueoQR() {
+      // Pequeño margen extra (4 seg) para que la persona retire el QR de la cámara
+      // antes de permitir un nuevo escaneo, evitando registros repetidos accidentales.
+      setTimeout(() => { procesandoQR = false; }, 4000);
+    }
+
+    async function registrarAhora(id, estado, esQR = false) {
       if (!id || !employeeData) {
         mostrarRespuesta("❌ Por favor ingrese un ID válido", "error");
+        if (esQR) liberarBloqueoQR();
         return;
       }
 
@@ -1091,12 +1105,15 @@
             reproducirSonido('sonido-duplicado');
             habilitarBotonRegistro();
           }
+
+          if (esQR) liberarBloqueoQR();
         },
         function(err) {
           console.error(err);
           btnSubmit.innerHTML = '✅ Registrar Asistencia (manual)';
           habilitarBotonRegistro();
           mostrarRespuesta("❌ Error de conexión", "error");
+          if (esQR) liberarBloqueoQR();
         }
       );
     }
