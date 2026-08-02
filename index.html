@@ -17,7 +17,7 @@
       --error-text: #721c24;
       --warning: #fff3cd;
       --warning-text: #856404;
-      --bg-main: linear-gradient(rgba(10,10,10,0.55), rgba(10,10,10,0.7)), url('fondo.JPG') center/cover no-repeat fixed;
+      --bg-main: linear-gradient(rgba(10,10,10,0.55), rgba(10,10,10,0.7)), url('fondo.jpg') center/cover no-repeat;
       --shadow: 0 4px 20px rgba(0,0,0,0.15);
       --border-radius: 12px;
       --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -413,6 +413,108 @@
       padding: 10px;
     }
 
+    /* ---- Layout de 2 columnas: registro + lista en vivo ---- */
+    .container.ancho {
+      max-width: min(950px, 100vw - 20px);
+    }
+
+    .layout-dos-columnas {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .panel-registro {
+      flex: 1 1 320px;
+      min-width: 280px;
+    }
+
+    .panel-lista {
+      flex: 1 1 280px;
+      min-width: 260px;
+      background: #fafafa;
+      border: 1px solid #eee;
+      border-radius: var(--border-radius);
+      overflow: hidden;
+      align-self: stretch;
+    }
+
+    .panel-lista-header {
+      background: #1a1a1a;
+      color: #fff;
+      padding: 12px 14px;
+      font-weight: 700;
+      font-size: 14px;
+      border-top: 3px solid var(--primary);
+    }
+
+    #lista-asistencia {
+      max-height: 420px;
+      overflow-y: auto;
+      padding: 6px 10px;
+    }
+
+    .registro-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 4px;
+      border-bottom: 1px solid #eee;
+      font-size: 13px;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .registro-item:last-child {
+      border-bottom: none;
+    }
+
+    .registro-item .nombre {
+      font-weight: 600;
+      color: #333;
+    }
+
+    .registro-item .estado-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+    }
+
+    .registro-item .estado-ingreso {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .registro-item .estado-salida {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .registro-item .hora {
+      color: #888;
+      font-size: 12px;
+      white-space: nowrap;
+      margin-left: 8px;
+    }
+
+    /* ---- Alerta de duplicado (más notoria que un mensaje normal) ---- */
+    .alerta-duplicado {
+      background: #721c24 !important;
+      color: #fff !important;
+      border: 2px solid #ff4d4d !important;
+      animation: shakeAlerta 0.4s ease-in-out;
+    }
+
+    @keyframes shakeAlerta {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+
     @media (max-width: 480px) {
       body {
         padding: 5px;
@@ -487,6 +589,9 @@
       </div>
       <div style="padding: 0 20px 20px;">
 
+      <div class="layout-dos-columnas">
+        <div class="panel-registro">
+
       <div class="time-display" id="reloj-tiempo">🕐 Cargando...</div>
       
       <div class="camera-toggle">
@@ -549,18 +654,33 @@
         </div>
         
         <button type="submit" class="btn" id="btn-submit" disabled>
-          ✅ Registrar Asistencia
+          ✅ Registrar Asistencia (manual)
         </button>
       </form>
       
       <div id="respuesta"></div>
+
+        </div> <!-- fin panel-registro -->
+
+        <div class="panel-lista">
+          <div class="panel-lista-header">📋 Lista de Asistencia (hoy)</div>
+          <div id="lista-asistencia">
+            <p style="text-align:center; color:#999; font-size:13px; padding:20px 10px;">Cargando registros...</p>
+          </div>
+        </div>
+
+      </div> <!-- fin layout-dos-columnas -->
+
       </div>
     </div>
   </div>
 
+  <audio id="sonido-exito" src="ingreso.mp3" preload="auto"></audio>
+  <audio id="sonido-duplicado" src="duplicado.mp3" preload="auto"></audio>
+
   <script>
     // ⚠️ IMPORTANTE: pega aquí la URL de tu Web App de Apps Script (termina en /exec)
-    const API_URL = "https://script.google.com/macros/s/AKfycbydchmtHUIbtyON6-dIpOxNEWjrs6DXx36_JMC6lSqSNvsiYOoGFgPAR3b3I9jznO3o/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbxTu7E5xcj1zc8FTbQCzKV1NkmCzLYtXs6sOy6PspcI61NjjHVllMVmsvaKO1SlIw6m/exec";
 
     let qrCodeReader = null;
     let isScanning = false;
@@ -774,12 +894,11 @@
     function procesarQR(textoQR) {
       const idEmpleado = textoQR.trim();
       document.getElementById("id").value = idEmpleado;
-      buscarEmpleado(idEmpleado);
-      mostrarRespuesta("🎯 ID cargado desde QR", "success");
+      buscarEmpleado(idEmpleado, true); // true = registrar automáticamente al encontrar al empleado
     }
     
     // ---- Reemplazo de google.script.run por fetch() ----
-    function buscarEmpleado(id) {
+    function buscarEmpleado(id, autoRegistrar = false) {
       if (!id.trim()) {
         ocultarInfoEmpleado();
         return;
@@ -794,6 +913,12 @@
             employeeData = resultado.datos;
             mostrarInfoEmpleado(resultado.datos);
             habilitarBotonRegistro();
+
+            if (autoRegistrar) {
+              // Viene de un escaneo QR: se registra solo, sin necesitar el botón
+              const estado = document.getElementById("estado").value;
+              registrarAhora(id, estado);
+            }
           } else {
             ocultarInfoEmpleado();
             mostrarRespuesta("⚠️ " + (resultado.mensaje || 'Empleado no encontrado'), "warning");
@@ -808,6 +933,7 @@
         }
       );
     }
+
     
     function mostrarBusqueda() {
       const infoDiv = document.getElementById('employee-info');
@@ -872,17 +998,57 @@
       });
     }
 
-    async function enviarFormulario(event) {
-      event.preventDefault();
-      
-      const id = document.getElementById("id").value.trim();
-      const estado = document.getElementById("estado").value;
-      
+    function reproducirSonido(idAudio) {
+      const audio = document.getElementById(idAudio);
+      if (audio) {
+        audio.currentTime = 0;
+        audio.play().catch(() => {}); // si el navegador bloquea el autoplay, lo ignoramos silenciosamente
+      }
+    }
+
+    function mostrarAlertaDuplicado(mensaje) {
+      const respuesta = document.getElementById("respuesta");
+      respuesta.textContent = "🚫 " + mensaje;
+      respuesta.className = "alerta-duplicado";
+      respuesta.style.display = "block";
+    }
+
+    function cargarListaAsistencia() {
+      jsonpRequest(
+        { action: 'ultimosRegistros', limite: 20 },
+        function(resultado) {
+          const contenedor = document.getElementById('lista-asistencia');
+          if (!contenedor) return;
+
+          if (resultado.error || !resultado.registros || resultado.registros.length === 0) {
+            contenedor.innerHTML = '<p style="text-align:center; color:#999; font-size:13px; padding:20px 10px;">Sin registros todavía hoy</p>';
+            return;
+          }
+
+          contenedor.innerHTML = resultado.registros.map(r => {
+            const claseBadge = r.estado === 'INGRESO' ? 'estado-ingreso' : 'estado-salida';
+            return `
+              <div class="registro-item">
+                <span class="nombre">${r.nombre}<span class="estado-badge ${claseBadge}">${r.estado}</span></span>
+                <span class="hora">${r.hora}</span>
+              </div>
+            `;
+          }).join('');
+        },
+        function(err) {
+          console.error('Error cargando lista:', err);
+        }
+      );
+    }
+
+    // ---- Lógica central de registro (usada por QR automático Y por el botón manual) ----
+    async function registrarAhora(id, estado) {
       if (!id || !employeeData) {
         mostrarRespuesta("❌ Por favor ingrese un ID válido", "error");
         return;
       }
-      
+
+      const empleadoActual = employeeData;
       const btnSubmit = document.getElementById("btn-submit");
       btnSubmit.innerHTML = '<div class="loading"></div> Obteniendo ubicación...';
       btnSubmit.disabled = true;
@@ -894,9 +1060,9 @@
       const data = { 
         action: 'registrarAsistencia',
         id: id,
-        nombre: employeeData.nombre,
-        area: employeeData.area,
-        cargo: employeeData.cargo,
+        nombre: empleadoActual.nombre,
+        area: empleadoActual.area,
+        cargo: empleadoActual.cargo,
         estado: estado,
         lat: ubicacion.lat,
         lng: ubicacion.lng,
@@ -906,29 +1072,42 @@
       jsonpRequest(
         data,
         function(resultado) {
-          btnSubmit.innerHTML = '✅ Registrar Asistencia';
+          btnSubmit.innerHTML = '✅ Registrar Asistencia (manual)';
           
           if (resultado.exito) {
-            const mensaje = `✅ ${estado} registrado para ${employeeData.nombre} a las ${resultado.hora}`;
+            const mensaje = `✅ ${estado} registrado para ${empleadoActual.nombre} a las ${resultado.hora}`;
             mostrarRespuesta(mensaje, "success");
+            reproducirSonido('sonido-exito');
             
             document.getElementById("formulario").reset();
             document.getElementById("estado").value = "INGRESO";
+            document.getElementById("id").value = "";
             ocultarInfoEmpleado();
             deshabilitarBotonRegistro();
+            cargarListaAsistencia();
             
           } else {
-            mostrarRespuesta(resultado.mensaje, "warning");
+            mostrarAlertaDuplicado(resultado.mensaje);
+            reproducirSonido('sonido-duplicado');
             habilitarBotonRegistro();
           }
         },
         function(err) {
           console.error(err);
-          btnSubmit.innerHTML = '✅ Registrar Asistencia';
+          btnSubmit.innerHTML = '✅ Registrar Asistencia (manual)';
           habilitarBotonRegistro();
           mostrarRespuesta("❌ Error de conexión", "error");
         }
       );
+    }
+
+    async function enviarFormulario(event) {
+      event.preventDefault();
+      
+      const id = document.getElementById("id").value.trim();
+      const estado = document.getElementById("estado").value;
+      
+      await registrarAhora(id, estado);
     }
     
     document.getElementById("formulario").addEventListener("submit", enviarFormulario);
@@ -1009,6 +1188,7 @@
       detenerEscaneo();
       document.getElementById('app-content').style.display = 'none';
       document.getElementById('login-screen').style.display = 'block';
+      document.getElementById('main-container').classList.remove('ancho');
       document.getElementById('login-correo').value = '';
       document.getElementById('login-contrasena').value = '';
     }
@@ -1016,6 +1196,7 @@
     function mostrarApp() {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app-content').style.display = 'block';
+      document.getElementById('main-container').classList.add('ancho');
       document.getElementById('responsable-actual').textContent =
         '👤 ' + supervisorActual.cargo + ' (' + supervisorActual.correo + ')';
 
@@ -1026,6 +1207,9 @@
           cargarCamaras();
         }
       }, 1000);
+
+      cargarListaAsistencia();
+      setInterval(cargarListaAsistencia, 10000); // refresca la lista cada 10 segundos
     }
 
     window.addEventListener('load', function() {
